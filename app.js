@@ -13,7 +13,7 @@ const seedCards = [
   },
   {
     id: "seed-invoice-henkan",
-    terms: ["インボイス", "対価の返還等"],
+    terms: ["インボイス", "適格請求書発行事業者", "対価の返還等"],
     points: [
       "適格返還請求書の交付義務",
       "売上げに係る対価の返還等と仕入れに係る対価の返還等の区別",
@@ -262,6 +262,16 @@ const seedCards = [
     note: "第69回問2。事業区分は実態で判断し、第一種と第二種などの境界に注意する。"
   },
   {
+    id: "seed-kani-bunkatsu-jogai",
+    terms: ["分割", "簡易課税", "適用除外", "分割等に係る課税期間"],
+    points: [
+      "基準期間における課税売上高が5,000万円以下でも、分割等に係る課税期間は簡易課税制度の適用除外になる",
+      "簡易課税制度選択届出書の効力判定では、提出時期だけでなく分割等に係る課税期間かを確認する",
+      "新設分割子法人、分割承継法人の納税義務の免除の特例とセットで連想する"
+    ],
+    note: "理論テキスト7-11。分割が出たら、納税義務だけで止めず、簡易課税の適用可否まで確認する。"
+  },
+  {
     id: "seed-tokutei-shiire-henkan",
     terms: ["特定課税仕入れ", "対価の返還等", "リバースチャージ"],
     points: [
@@ -313,13 +323,23 @@ const seedCards = [
   },
   {
     id: "seed-invoice-kofu",
-    terms: ["適格請求書", "交付義務", "媒介者交付特例"],
+    terms: ["適格請求書", "適格請求書発行事業者", "交付義務", "媒介者交付特例"],
     points: [
       "課税資産の譲渡等を受ける他の事業者から求められた場合の交付義務を確認する",
       "輸出免税取引や国外取引など、交付対象外となる取引を確認する",
       "媒介者交付特例では通知、写しの保存、委託者への交付を押さえる"
     ],
     note: "第74回問1。誰の登録番号で交付するか、誰が写しを保存するかが問われやすい。"
+  },
+  {
+    id: "seed-invoice-death",
+    terms: ["個人事業者", "適格請求書発行事業者", "死亡", "死亡届出書", "みなし登録期間"],
+    points: [
+      "適格請求書発行事業者である個人事業者が死亡した場合、相続人は死亡届出書を速やかに提出する",
+      "登録は、死亡届出書の提出日の翌日又は死亡日の翌日から4月を経過した日のいずれか早い日に効力を失う",
+      "事業を承継した相続人が未登録の場合、相続のあった日の翌日から一定の日までをみなし登録期間として扱う"
+    ],
+    note: "理論テキスト9-2。みなし登録期間中は、被相続人の登録番号を相続人の登録番号とみなす点まで思い出す。"
   },
   {
     id: "seed-sogaku-hyoji",
@@ -453,8 +473,9 @@ function loadCards() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (Array.isArray(stored) && stored.length > 0) {
-      const storedIds = new Set(stored.map((card) => card.id));
-      return [...stored, ...seedCards.filter((card) => !storedIds.has(card.id))];
+      const seedIds = new Set(seedCards.map((card) => card.id));
+      const customCards = stored.filter((card) => !seedIds.has(card.id));
+      return [...seedCards, ...customCards];
     }
   } catch {
     localStorage.removeItem(STORAGE_KEY);
