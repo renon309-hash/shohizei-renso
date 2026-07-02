@@ -505,7 +505,7 @@ function switchView(viewName) {
 }
 
 function renderTags() {
-  const terms = [...new Set(cards.flatMap((card) => card.terms))].slice(0, 16);
+  const terms = [...new Set(cards.flatMap((card) => card.terms))].slice(0, 32);
   tagArea.replaceChildren(
     ...terms.map((term) => {
       const button = document.createElement("button");
