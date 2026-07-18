@@ -1,4 +1,14 @@
 const STORAGE_KEY = "shohizei-renso-cards-v1";
+const PRIORITY_LABELS = {
+  high: "高",
+  medium: "中",
+  low: "低"
+};
+const PRIORITY_SCORES = {
+  high: 30,
+  medium: 10,
+  low: 0
+};
 
 const seedCards = [
   {
@@ -263,6 +273,7 @@ const seedCards = [
   },
   {
     id: "seed-kani-bunkatsu-jogai",
+    priority: "high",
     terms: ["分割", "簡易課税", "適用除外", "分割等に係る課税期間"],
     points: [
       "基準期間における課税売上高が5,000万円以下でも、分割等に係る課税期間は簡易課税制度の適用除外になる",
@@ -333,6 +344,7 @@ const seedCards = [
   },
   {
     id: "seed-invoice-death",
+    priority: "high",
     terms: ["個人事業者", "適格請求書発行事業者", "死亡", "死亡届出書", "みなし登録期間"],
     points: [
       "適格請求書発行事業者である個人事業者が死亡した場合、相続人は死亡届出書を速やかに提出する",
@@ -404,6 +416,7 @@ const entryForm = document.querySelector("#entryForm");
 const termsField = document.querySelector("#termsField");
 const pointsField = document.querySelector("#pointsField");
 const noteField = document.querySelector("#noteField");
+const priorityField = document.querySelector("#priorityField");
 const exportButton = document.querySelector("#exportButton");
 const importInput = document.querySelector("#importInput");
 const installButton = document.querySelector("#installButton");
@@ -438,7 +451,9 @@ entryForm.addEventListener("submit", (event) => {
     id: crypto.randomUUID(),
     terms,
     points,
-    note: noteField.value.trim()
+    note: noteField.value.trim(),
+    priority: priorityField.value,
+    mistakes: 0
   });
   saveCards();
   entryForm.reset();
@@ -473,18 +488,41 @@ function loadCards() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (Array.isArray(stored) && stored.length > 0) {
+      const storedById = new Map(stored.map((card) => [card.id, card]));
       const seedIds = new Set(seedCards.map((card) => card.id));
-      const customCards = stored.filter((card) => !seedIds.has(card.id));
-      return [...seedCards, ...customCards];
+      const mergedSeedCards = seedCards.map((seedCard) => {
+        const storedCard = storedById.get(seedCard.id) || {};
+        return normalizeCard({
+          ...seedCard,
+          priority: storedCard.priority || seedCard.priority,
+          mistakes: storedCard.mistakes ?? seedCard.mistakes
+        });
+      });
+      const customCards = stored.filter((card) => !seedIds.has(card.id)).map(normalizeCard);
+      return [...mergedSeedCards, ...customCards];
     }
   } catch {
     localStorage.removeItem(STORAGE_KEY);
   }
-  return seedCards;
+  return seedCards.map(normalizeCard);
 }
 
 function saveCards() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+}
+
+function normalizeCard(card) {
+  const priority = Object.prototype.hasOwnProperty.call(PRIORITY_LABELS, card.priority) ? card.priority : "medium";
+  const mistakes = Number.isFinite(Number(card.mistakes)) ? Math.max(0, Number(card.mistakes)) : 0;
+  return {
+    ...card,
+    id: card.id || crypto.randomUUID(),
+    terms: Array.isArray(card.terms) ? card.terms.map(String).filter(Boolean) : [],
+    points: Array.isArray(card.points) ? card.points.map(String).filter(Boolean) : [],
+    note: String(card.note || ""),
+    priority,
+    mistakes
+  };
 }
 
 function renderAll() {
@@ -531,24 +569,24 @@ function renderResults() {
 }
 
 function renderLibrary() {
-  renderCardList(libraryList, cards, []);
+  renderCardList(libraryList, prioritizeCards(cards), []);
 }
 
 function renderQuiz() {
   quizMemo.value = "";
   answerArea.classList.add("hidden");
-  const card = cards[Math.floor(Math.random() * cards.length)];
+  const card = pickQuizCard();
   if (!card) return;
   quizTerms.replaceChildren(...card.terms.map(createTermChip));
   answerArea.replaceChildren(renderCard(card, []));
 }
 
 function getMatches(terms) {
-  if (terms.length === 0) return cards;
+  if (terms.length === 0) return prioritizeCards(cards);
   return cards
     .map((card) => ({ card, score: scoreCard(card, terms) }))
     .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => priorityScore(b.card) - priorityScore(a.card) || b.score - a.score)
     .map((item) => item.card);
 }
 
@@ -560,6 +598,28 @@ function scoreCard(card, terms) {
     const textHit = haystack.includes(lowered);
     return score + (termHit ? 3 : textHit ? 1 : 0);
   }, 0);
+}
+
+function priorityScore(card) {
+  return (PRIORITY_SCORES[card.priority] || 0) + Math.min(card.mistakes, 5) * 12 + (card.mistakes >= 2 ? 40 : 0);
+}
+
+function prioritizeCards(list) {
+  return [...list].sort((a, b) => priorityScore(b) - priorityScore(a));
+}
+
+function pickQuizCard() {
+  const weightedCards = cards.map((card) => ({
+    card,
+    weight: 1 + Math.max(0, PRIORITY_SCORES[card.priority] || 0) / 10 + Math.min(card.mistakes, 5) * 2 + (card.mistakes >= 2 ? 6 : 0)
+  }));
+  const totalWeight = weightedCards.reduce((total, item) => total + item.weight, 0);
+  let target = Math.random() * totalWeight;
+  for (const item of weightedCards) {
+    target -= item.weight;
+    if (target <= 0) return item.card;
+  }
+  return cards[0];
 }
 
 function renderCardList(container, list, highlightedTerms) {
@@ -576,11 +636,16 @@ function renderCardList(container, list, highlightedTerms) {
 function renderCard(card, highlightedTerms) {
   const node = cardTemplate.content.firstElementChild.cloneNode(true);
   const termList = node.querySelector(".term-list");
+  const cardMeta = node.querySelector(".card-meta");
   const pointList = node.querySelector(".point-list");
   const note = node.querySelector(".note");
   const deleteButton = node.querySelector(".delete-button");
+  const correctButton = node.querySelector(".correct-button");
+  const missButton = node.querySelector(".miss-button");
+  const prioritySelect = node.querySelector(".priority-select");
 
   termList.replaceChildren(...card.terms.map(createTermChip));
+  cardMeta.replaceChildren(...createMetaPills(card));
   pointList.replaceChildren(
     ...card.points.map((point) => {
       const item = document.createElement("li");
@@ -589,6 +654,16 @@ function renderCard(card, highlightedTerms) {
     })
   );
   note.innerHTML = highlightText(card.note || "", highlightedTerms);
+  prioritySelect.value = card.priority;
+  prioritySelect.addEventListener("change", () => {
+    updateCard(card.id, { priority: prioritySelect.value });
+  });
+  correctButton.addEventListener("click", () => {
+    updateCard(card.id, { mistakes: Math.max(0, card.mistakes - 1) });
+  });
+  missButton.addEventListener("click", () => {
+    updateCard(card.id, { mistakes: card.mistakes + 1 });
+  });
   deleteButton.addEventListener("click", () => {
     cards = cards.filter((savedCard) => savedCard.id !== card.id);
     saveCards();
@@ -596,6 +671,25 @@ function renderCard(card, highlightedTerms) {
     switchView(activeView);
   });
   return node;
+}
+
+function createMetaPills(card) {
+  const priorityPill = document.createElement("span");
+  priorityPill.className = `meta-pill priority-${card.priority}`;
+  priorityPill.textContent = `優先度 ${PRIORITY_LABELS[card.priority]}`;
+
+  const mistakePill = document.createElement("span");
+  mistakePill.className = `meta-pill${card.mistakes >= 2 ? " hot" : ""}`;
+  mistakePill.textContent = `間違い ${card.mistakes}回`;
+
+  return [priorityPill, mistakePill];
+}
+
+function updateCard(cardId, patch) {
+  cards = cards.map((card) => (card.id === cardId ? normalizeCard({ ...card, ...patch }) : card));
+  saveCards();
+  renderAll();
+  switchView(activeView);
 }
 
 function createTermChip(term) {
@@ -658,8 +752,11 @@ function importCards(event) {
           id: card.id || crypto.randomUUID(),
           terms: card.terms.map(String).filter(Boolean),
           points: card.points.map(String).filter(Boolean),
-          note: String(card.note || "")
-        }));
+          note: String(card.note || ""),
+          priority: card.priority,
+          mistakes: card.mistakes
+        }))
+        .map(normalizeCard);
       saveCards();
       renderAll();
       switchView("library");

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f5ef" />
     <title>消費税 理論連想</title>
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="styles.css?v=20260702-3" />
+    <link rel="stylesheet" href="styles.css?v=20260718-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -98,6 +98,14 @@
               答案での注意
               <textarea id="noteField" rows="3" placeholder="任意"></textarea>
             </label>
+            <label>
+              優先度
+              <select id="priorityField">
+                <option value="high">高</option>
+                <option value="medium" selected>中</option>
+                <option value="low">低</option>
+              </select>
+            </label>
             <button class="primary-button" type="submit">カードを保存</button>
           </form>
         </section>
@@ -112,11 +120,24 @@
             <span aria-hidden="true">×</span>
           </button>
         </div>
+        <div class="card-meta"></div>
         <ul class="point-list"></ul>
         <p class="note"></p>
+        <div class="card-actions">
+          <button class="secondary-button compact correct-button" type="button">できた</button>
+          <button class="secondary-button compact miss-button" type="button">間違えた</button>
+          <label class="priority-control">
+            優先度
+            <select class="priority-select">
+              <option value="high">高</option>
+              <option value="medium">中</option>
+              <option value="low">低</option>
+            </select>
+          </label>
+        </div>
       </article>
     </template>
 
-    <script src="app.js?v=20260702-3"></script>
+    <script src="app.js?v=20260718-1"></script>
   </body>
 </html>
